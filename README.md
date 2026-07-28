@@ -1,33 +1,100 @@
-# Week 4 — Services Layer, Hooks, React Query & Zustand
+# Event Management API — Week 5
 
-Building on the week 3 dashboard: moving API calls into a services layer, replacing repeated fetch logic with custom hooks and React Query, connecting to a real API, and adding global state with Zustand.
+Backend Architecture Challenge: an event management API (create events, RSVP, list attendees) built with Python, FastAPI, and a relational database. Built to learn backend architecture, not just to ship endpoints — see tickets WK5-01 through WK5-13.
 
-## Learning
+## Problem
 
-**Services layer** — why API calls shouldn't live inside components. Open the week 3 dashboard, find every direct `fetch`/`axios` call inside a component, and count them. That count is how many files you'd have to touch if the API URL changed tomorrow — the problem a services layer solves. One file owns all API calls; everything else just uses it.
+Build an API where users can create events, RSVP to them, and list attendees.
 
-**Custom hooks** — pulling repeated logic out of components. Build `useFetch(url)` to handle loading/error/data in one place. Build `useDebounce(value, delay)` for inputs like search that shouldn't fire on every keystroke. Note what problem each hook solves.
+**Constraints**
+- 10k events, 100k users
+- <100ms response time
+- <$100/month to run (database, compute, traffic)
 
-**React Query** — why `useEffect` + `fetch` isn't enough for real apps (no caching, no retry, no background refetch, no loading state management). Build a `useQuery` example fetching a list of users and confirm caching works — navigate away and back, no second request. Build a `useMutation` example to post one item. Note what you'd have to build yourself to match this with plain `useEffect`.
+## Tech Stack
 
-**Firebase** — Firebase Authentication and Firestore.
+- Python 3.11+
+- FastAPI + Uvicorn
+- Pydantic (request/response validation)
+- PostgreSQL + SQLAlchemy
+- Pytest
 
-**Zustand** — simpler than Context API for complex state. Build a store with a logged-in user, a light/dark theme, and a notification list (add/remove). Use it in 3 different components with no prop passing. Note when you'd reach for Zustand over Context, with a real example from the week 3 dashboard.
+## Project Structure
 
-## Build
+```
+app/
+  main.py              # FastAPI app entrypoint
+  models/               # SQLAlchemy models (Event, User, RSVP)
+  repositories/          # All DB access — one repository per table
+  services/              # Business logic, calls repositories
+  routers/               # Route handlers — thin, call services only
+  exceptions.py          # Custom exceptions (EventNotFound, DuplicateRSVP, EventFull)
+tests/
+  test_events.py
+  test_rsvp.py
+docs/
+  api_spec.md            # WK5-05: endpoints, status codes, error shapes
+  performance_cost.md    # WK5-06: latency and cost estimates
+  scaling_notes.md       # WK5-13: what breaks at 1M events / 10M users
+```
 
-1. **Create a services layer** — move all API calls out of components into one place.
-2. **Replace repeated fetch logic with `useFetch`** across all components. Components should only call the hook and render the result — display only, not fetching logic. Compare line counts before/after.
-3. **Add `useDebounce` to the search input** — stop firing a request on every keystroke.
-4. **Replace all `useEffect` fetching with React Query's `useQuery`** — sensible keys (`['users']`, `['expenses', userId]`), loading/error state from React Query instead of local `useState`. Verify caching: navigate away and back, no extra request.
-5. **Connect the dashboard to a real public API** (JSONPlaceholder, OpenWeather, etc.) instead of hardcoded data. Services layer calls the real endpoint, React Query caches and manages it. Real loading states, real error messages — no blank screen or crash if the API is down.
-6. **Add a Zustand store for global UI state** — current user, theme, notifications. Theme toggle actually changes the UI. Notification count shown as a navbar badge. No prop passing.
+Routes never talk to the database directly — they call a service, the service calls a repository. See WK5-07 for why.
 
-## Review & Wrap-up
+## Setup
 
-- **Code review your own week 3 and 4 code.** Find at least 5 specific issues — repeated logic that should be a hook, a component doing too much, a missing TypeScript type, an unhandled error state, a hardcoded value that should be a constant. Write down each issue, the fix, and why.
-- **Write the week 4 improvement doc** — what changed, why, and what you'd do differently.
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install fastapi uvicorn sqlalchemy psycopg2-binary pydantic pytest
 
-## Reference
+# create a .env with DATABASE_URL=postgresql://user:pass@localhost:5432/events
 
-Claude Courses: *AI Fluency: Framework & Foundations*
+uvicorn app.main:app --reload
+```
+
+API docs available at `http://localhost:8000/docs` once running.
+
+## Database Schema
+
+Three tables: `events`, `users`, `rsvps` (join table between users and events). Indexes are placed based on the most frequent queries — listing attendees per event, and listing events per user. Full schema reasoning in `docs/api_spec.md` (WK5-04, WK5-05).
+
+## API Endpoints
+
+| Method | Path                     | Description                  |
+|--------|--------------------------|-------------------------------|
+| POST   | `/events`                | Create an event               |
+| GET    | `/events`                | List events (paginated)       |
+| GET    | `/events/{id}`           | Get a single event            |
+| POST   | `/events/{id}/rsvp`      | RSVP to an event               |
+| DELETE | `/events/{id}/rsvp`      | Cancel an RSVP                  |
+| GET    | `/events/{id}/attendees` | List attendees for an event     |
+
+Full status codes and error response shapes are in `docs/api_spec.md`.
+
+## Error Handling
+
+Expected failures raise specific exceptions, not generic 500s:
+
+- `EventNotFound` → 404
+- `DuplicateRSVP` → 409
+- `EventFull` → 409
+
+See WK5-11.
+
+## Testing
+
+```bash
+pytest
+```
+
+Covers happy paths, edge cases (full event, duplicate RSVP, invalid IDs, missing fields), and one concurrency test simulating two simultaneous RSVPs for the last spot in an event. See WK5-12.
+
+## Design Docs
+
+- `docs/api_spec.md` — API contract, written before implementation (WK5-05)
+- `docs/performance_cost.md` — latency and AWS cost estimates at 10k events / 100k users (WK5-06)
+- `docs/scaling_notes.md` — what breaks at 1M events / 10M users, and what would replace it (WK5-13, feeds into Week 6)
+
+## Tickets
+
+This project maps to tickets WK5-01 through WK5-13: Python/FastAPI/SQL fundamentals, design-before-code, implementation with the repository pattern, and error handling and testing.
