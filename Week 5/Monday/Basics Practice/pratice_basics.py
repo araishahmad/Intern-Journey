@@ -117,6 +117,8 @@ if coordinates:
     })
 
     print(df)
+    
+
     # print(f'Last week temperature of {city_name}: ')
     # for date, max_temp, min_temp in zip(dates, max_temps, min_temps):
     #     print(f'{date}: max {max_temp}°C, min {min_temp}°C')
