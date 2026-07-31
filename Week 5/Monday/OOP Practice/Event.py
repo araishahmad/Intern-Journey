@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+
 from Attendee import Attendee
+
 
 @dataclass
 class Event:
