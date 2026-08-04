@@ -1,16 +1,16 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 app = FastAPI()
 
 
 class Health_Insurance(BaseModel):
     name: str
-    age: int
+    age: int = Field(ge=18, le=100)
     organization: str
-    income: int
-    experience: int
-    health_insurance_amount: int
+    income: int = Field(ge=0)
+    experience: int = Field(ge=0, le=50)
+    health_insurance_amount: int = Field(ge=0)
 
 
 record = []
@@ -70,3 +70,21 @@ def delete_user(user_name: str):
             return {"message": f"{user_name} removed successfully"}
 
     return {"message": f"No user found named {user_name}"}
+
+@app.get('/filter')
+def filter_users(age: int = None, income: int = None, experience: int = None, limit: int = None):
+    filtered = []
+
+    for user in record:
+        if age and user['age'] != age:
+            continue
+
+        if income and user['income'] != income:
+            continue
+
+        if experience and user['experience'] != experience:
+            continue
+
+        filtered.append(user)
+
+    return filtered[:limit]
